@@ -22,6 +22,7 @@ import { useRef, useState } from 'react'
 
 const center = { lat: 48.8584, lng: 2.2945 }
 
+
 function App() {
 
   const { isLoaded } = useJsApiLoader({
@@ -33,6 +34,9 @@ function App() {
   const [directionsResponse, setDirectionsResponse] = useState(null)
   const [distance, setDistance] = useState('')
   const [duration, setDuration] = useState('')
+  const [markers, setMarkers] = useState([]);
+  const [cash, setCash] = useState('')
+
 
   /** @type React.MutableRefObject<HTMLInputElement> */
   const originRef = useRef()
@@ -41,6 +45,22 @@ function App() {
 
   if (!isLoaded) {
     return <SkeletonText />
+  }
+
+
+  function enableLocation() {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        // Do something with the user's location
+        const userLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        setMarkers([...markers, userLocation]);
+      });
+    } else {
+      alert('Geolocation is not supported by this browser.');
+    }
   }
 
   async function calculateRoute() {
@@ -58,6 +78,11 @@ function App() {
     setDirectionsResponse(results)
     setDistance(results.routes[0].legs[0].distance.text)
     setDuration(results.routes[0].legs[0].duration.text)
+
+    const distanceValue = results.routes[0].legs[0].distance.value; // Distance in meters
+    const distanceInKm = distanceValue / 1000; // Distance in kilometers
+    let cashValue = distanceInKm / 10; // 10 km ga 1 dollar
+    setCash(`${cashValue.toFixed(2)} $`);
   }
 
   function clearRoute() {
@@ -67,6 +92,12 @@ function App() {
     originRef.current.value = ''
     destiantionRef.current.value = ''
   }
+  const handleMarkerDrag = (event) => {
+    console.log('Marker dragged to: ', event.latLng.lat(), event.latLng.lng());
+    // Bu erda marker qayerga qimirlatilganligi haqida ma'lumot olishingiz mumkin
+    // Va kerakli qimirlashni amalga oshirishingiz mumkin
+  }
+
 
   return (
     <Flex
@@ -89,8 +120,25 @@ function App() {
             fullscreenControl: false,
           }}
           onLoad={map => setMap(map)}
+          onClick={(e) => {
+            const newMarker = {
+              lat: e.latLng.lat(),
+              lng: e.latLng.lng(),
+            };
+            setMarkers([...markers, newMarker]);
+          }}
         >
-          <Marker position={center} />
+          {/* <Marker position={center} />
+          {directionsResponse && (
+            <DirectionsRenderer directions={directionsResponse} />
+          )} */}
+          {markers.map((marker, index) => (
+            <Marker
+              key={index}
+              position={{ lat: marker.lat, lng: marker.lng }}
+              draggable={true} onDragEnd={handleMarkerDrag}
+            />
+          ))}
           {directionsResponse && (
             <DirectionsRenderer directions={directionsResponse} />
           )}
@@ -108,7 +156,10 @@ function App() {
         <HStack spacing={2} justifyContent='space-between'>
           <Box flexGrow={1}>
             <Autocomplete>
-              <Input type='text' placeholder='Origin' ref={originRef} />
+              <Input
+                type='text'
+                placeholder='Origin'
+                ref={originRef} />
             </Autocomplete>
           </Box>
           <Box flexGrow={1}>
@@ -122,19 +173,21 @@ function App() {
           </Box>
 
           <ButtonGroup>
-            <Button colorScheme='green' type='submit' onClick={calculateRoute}>
+            <Button bgColor='yellow' fontWeight={'normal'} type='submit' onClick={calculateRoute}>
               Calculate Route
             </Button>
             <IconButton
               aria-label='center back'
               icon={<FaTimes />}
+              isRound
               onClick={clearRoute}
             />
           </ButtonGroup>
         </HStack>
-        <HStack spacing={4} mt={4} justifyContent='space-between'>
+        <HStack spacing={20} mt={5} justifyContent='space-between'>
           <Text>Distance: {distance} </Text>
           <Text>Duration: {duration} </Text>
+          <Text>Cash: {cash} </Text>
           <IconButton
             aria-label='center back'
             icon={<FaLocationArrow />}
@@ -142,6 +195,7 @@ function App() {
             onClick={() => {
               map.panTo(center)
               map.setZoom(15)
+              enableLocation()
             }}
           />
         </HStack>
